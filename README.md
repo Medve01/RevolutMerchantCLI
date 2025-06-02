@@ -129,11 +129,9 @@ A command-line interface tool for managing Revolut Merchant API operations, incl
 
 ### Setting Up a Sandbox Merchant Account
 
-1. Visit [Revolut Business](https://business.revolut.com/) and sign up for a business account
-2. Once logged in, go to the Developer section
-3. Create a new sandbox merchant account
-4. Generate API keys for your sandbox environment
-5. Save the API key in `revolut.sandbox.secret.key`
+1. Register a sandbox account at [sandbox-business.revolut.com/signup](https://sandbox-business.revolut.com/signup)
+2. Once logged in, go to Settings (cogwheel) → APIs → Merchant account
+3. Generate your API key and save it in `revolut.sandbox.secret.key`
 
 ### Testing Webhooks with ngrok
 

@@ -148,7 +148,11 @@ When developing locally, you can use ngrok to receive webhooks. This repository 
 
 2. Start the webhook listener in one terminal:
    ```bash
-   # Install Flask if you haven't already
+   # Create and activate a virtual environment
+   python -m venv venv
+   source venv/bin/activate  # On Windows use: venv\Scripts\activate
+   
+   # Install Flask
    pip install flask
    
    # Run the listener

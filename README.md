@@ -26,8 +26,8 @@ A command-line interface tool for managing Revolut Merchant API operations, incl
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/revolut-merchant-cli.git
-   cd revolut-merchant-cli
+   git clone git@github.com:Medve01/RevolutMerchantCLI.git
+   cd RevolutMerchantCLI
    ```
 
 2. Make the script executable:

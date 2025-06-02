@@ -88,6 +88,36 @@ A command-line interface tool for managing Revolut Merchant API operations, incl
    ./revcli order get <id> [-e sandbox|production]
    ```
 
+4. Update an order:
+   ```bash
+   ./revcli order update <id> <amount> <currency> [-e sandbox|production]
+   ```
+
+5. Capture an order:
+   ```bash
+   ./revcli order capture <id> [-e sandbox|production]
+   ```
+
+6. Cancel an order:
+   ```bash
+   ./revcli order cancel <id> [-e sandbox|production]
+   ```
+
+7. Refund an order:
+   ```bash
+   ./revcli order refund <id> <amount> [-e sandbox|production]
+   ```
+
+8. Pay for an order using a saved payment method:
+   ```bash
+   ./revcli order pay <id> <payment_method_id> [-e sandbox|production]
+   ```
+
+9. Get order payments:
+   ```bash
+   ./revcli order payments <id> [-e sandbox|production]
+   ```
+
 ### Options
 
 - `-e, --env <env>`: Environment (sandbox|production, default: production)
@@ -124,6 +154,36 @@ A command-line interface tool for managing Revolut Merchant API operations, incl
    ```bash
    ./revcli order get order_123
    ```
+
+7. Update an order amount:
+   ```bash
+   ./revcli order update order_123 150 EUR
+   ```
+
+8. Capture an authorized order:
+   ```bash
+   ./revcli order capture order_123
+   ```
+
+9. Cancel an uncaptured order:
+   ```bash
+   ./revcli order cancel order_123
+   ```
+
+10. Refund a completed order:
+    ```bash
+    ./revcli order refund order_123 100
+    ```
+
+11. Pay for an order using a saved payment method:
+    ```bash
+    ./revcli order pay order_123 pm_456
+    ```
+
+12. List payments for an order:
+    ```bash
+    ./revcli order payments order_123
+    ```
 
 ## Error Handling
 

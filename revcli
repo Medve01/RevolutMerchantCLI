@@ -15,6 +15,12 @@ show_usage() {
     echo "    create <amount> <currency>  Create a new order"
     echo "    list [hours]               List orders from the past X hours (default: 8)"
     echo "    get <id>                   Get order details"
+    echo "    update <id> <amount> <currency>  Update an order"
+    echo "    capture <id>                Capture an order"
+    echo "    cancel <id>                 Cancel an order"
+    echo "    refund <id> <amount>        Refund an order"
+    echo "    pay <id> <payment_method_id>  Pay an order"
+    echo "    payments <id>               Get order payments"
     echo ""
     echo "Options:"
     echo "  -e, --env <env>     Environment (sandbox|production, default: production)"
@@ -73,7 +79,7 @@ while [[ $# -gt 0 ]]; do
             COMMAND="$1"
             shift
             ;;
-        list|register|delete|create|get|purge)
+        list|register|delete|create|get|purge|update|capture|cancel|refund|pay|payments)
             SUBCOMMAND="$1"
             shift
             ;;
@@ -112,6 +118,55 @@ while [[ $# -gt 0 ]]; do
                             if [[ "$1" =~ ^[0-9]+$ ]]; then
                                 HOURS="$1"
                             fi
+                            ;;
+                        update)
+                            if [ -z "$2" ] || [ -z "$3" ] || [ -z "$4" ]; then
+                                echo "Error: Order ID, amount, and currency are required"
+                                echo "Usage: $0 order update <id> <amount> <currency> [-e sandbox|production]"
+                                exit 1
+                            fi
+                            AMOUNT="$2"
+                            CURRENCY="$3"
+                            ;;
+                        capture)
+                            if [ -z "$1" ]; then
+                                echo "Error: Order ID is required"
+                                echo "Usage: $0 order capture <id> [-e sandbox|production]"
+                                exit 1
+                            fi
+                            WEBHOOK_ID="$1"
+                            ;;
+                        cancel)
+                            if [ -z "$1" ]; then
+                                echo "Error: Order ID is required"
+                                echo "Usage: $0 order cancel <id> [-e sandbox|production]"
+                                exit 1
+                            fi
+                            WEBHOOK_ID="$1"
+                            ;;
+                        refund)
+                            if [ -z "$1" ] || [ -z "$2" ]; then
+                                echo "Error: Order ID and amount are required"
+                                echo "Usage: $0 order refund <id> <amount> [-e sandbox|production]"
+                                exit 1
+                            fi
+                            AMOUNT="$2"
+                            ;;
+                        pay)
+                            if [ -z "$1" ] || [ -z "$2" ]; then
+                                echo "Error: Order ID and payment method ID are required"
+                                echo "Usage: $0 order pay <id> <payment_method_id> [-e sandbox|production]"
+                                exit 1
+                            fi
+                            WEBHOOK_ID="$1"
+                            ;;
+                        payments)
+                            if [ -z "$1" ]; then
+                                echo "Error: Order ID is required"
+                                echo "Usage: $0 order payments <id> [-e sandbox|production]"
+                                exit 1
+                            fi
+                            WEBHOOK_ID="$1"
                             ;;
                     esac
                     ;;
@@ -288,6 +343,109 @@ case "$COMMAND" in
                 from_date=$(get_timestamp $HOURS)
                 
                 response=$(curl -s -L -X GET "$BASE_URL/1.0/orders?from_created_date=$from_date" \
+                    -H 'Accept: application/json' \
+                    -H 'Revolut-Api-Version: 2024-09-01' \
+                    -H "$AUTH_HEADER")
+                
+                format_json "$response"
+                ;;
+
+            update)
+                if [ -z "$WEBHOOK_ID" ] || [ -z "$AMOUNT" ] || [ -z "$CURRENCY" ]; then
+                    echo "Error: Order ID, amount, and currency are required for update command"
+                    show_usage
+                fi
+                
+                echo "Updating order details for ID: $WEBHOOK_ID"
+                response=$(curl -s -X PATCH "$BASE_URL/orders/$WEBHOOK_ID" \
+                    -H 'Content-Type: application/json' \
+                    -H 'Accept: application/json' \
+                    -H 'Revolut-Api-Version: 2024-09-01' \
+                    -H "$AUTH_HEADER" \
+                    --data-raw '{
+                        "amount": '"$AMOUNT"',
+                        "currency": "'"$CURRENCY"'"
+                    }')
+                
+                format_json "$response"
+                ;;
+
+            capture)
+                if [ -z "$WEBHOOK_ID" ]; then
+                    echo "Error: Order ID is required for capture command"
+                    show_usage
+                fi
+                
+                echo "Capturing order with ID: $WEBHOOK_ID"
+                response=$(curl -s -X POST "$BASE_URL/orders/$WEBHOOK_ID/capture" \
+                    -H 'Accept: application/json' \
+                    -H 'Revolut-Api-Version: 2024-09-01' \
+                    -H "$AUTH_HEADER")
+                
+                format_json "$response"
+                ;;
+
+            cancel)
+                if [ -z "$WEBHOOK_ID" ]; then
+                    echo "Error: Order ID is required for cancel command"
+                    show_usage
+                fi
+                
+                echo "Canceling order with ID: $WEBHOOK_ID"
+                response=$(curl -s -X POST "$BASE_URL/orders/$WEBHOOK_ID/cancel" \
+                    -H 'Accept: application/json' \
+                    -H 'Revolut-Api-Version: 2024-09-01' \
+                    -H "$AUTH_HEADER")
+                
+                format_json "$response"
+                ;;
+
+            refund)
+                if [ -z "$WEBHOOK_ID" ] || [ -z "$AMOUNT" ]; then
+                    echo "Error: Order ID and amount are required for refund command"
+                    show_usage
+                fi
+                
+                echo "Refunding order with ID: $WEBHOOK_ID"
+                response=$(curl -s -X POST "$BASE_URL/orders/$WEBHOOK_ID/refund" \
+                    -H 'Content-Type: application/json' \
+                    -H 'Accept: application/json' \
+                    -H 'Revolut-Api-Version: 2024-09-01' \
+                    -H "$AUTH_HEADER" \
+                    --data-raw '{
+                        "amount": '"$AMOUNT"'
+                    }')
+                
+                format_json "$response"
+                ;;
+
+            pay)
+                if [ -z "$WEBHOOK_ID" ] || [ -z "$AMOUNT" ]; then
+                    echo "Error: Order ID and amount are required for pay command"
+                    show_usage
+                fi
+                
+                echo "Paying order with ID: $WEBHOOK_ID"
+                response=$(curl -s -X POST "$BASE_URL/orders/$WEBHOOK_ID/pay" \
+                    -H 'Content-Type: application/json' \
+                    -H 'Accept: application/json' \
+                    -H 'Revolut-Api-Version: 2024-09-01' \
+                    -H "$AUTH_HEADER" \
+                    --data-raw '{
+                        "amount": '"$AMOUNT"'
+                    }')
+                
+                format_json "$response"
+                ;;
+
+            payments)
+                if [ -z "$WEBHOOK_ID" ]; then
+                    echo "Error: Order ID is required for payments command"
+                    show_usage
+                fi
+                
+                echo "Getting payments for order with ID: $WEBHOOK_ID"
+                response=$(curl -s -X GET "$BASE_URL/orders/$WEBHOOK_ID/payments" \
                     -H 'Accept: application/json' \
                     -H 'Revolut-Api-Version: 2024-09-01' \
                     -H "$AUTH_HEADER")

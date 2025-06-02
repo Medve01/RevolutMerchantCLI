@@ -135,7 +135,7 @@ A command-line interface tool for managing Revolut Merchant API operations, incl
 
 ### Testing Webhooks with ngrok
 
-When developing locally, you can use ngrok to receive webhooks:
+When developing locally, you can use ngrok to receive webhooks. This repository includes a simple webhook listener that helps you debug incoming requests.
 
 1. Install ngrok:
    ```bash
@@ -146,7 +146,7 @@ When developing locally, you can use ngrok to receive webhooks:
    snap install ngrok
    ```
 
-2. Start the webhook listener:
+2. Start the webhook listener in one terminal:
    ```bash
    # Install Flask if you haven't already
    pip install flask
@@ -154,25 +154,49 @@ When developing locally, you can use ngrok to receive webhooks:
    # Run the listener
    python webhook_listener.py
    ```
+   You should see: "Starting webhook listener on http://localhost:8000"
 
-3. Start ngrok to create a tunnel:
+3. Start ngrok in another terminal:
    ```bash
    ngrok http 8000
    ```
+   You'll see a display showing your public URL (e.g., `https://abc123.ngrok.io`)
 
-4. Copy the HTTPS URL provided by ngrok (e.g., `https://abc123.ngrok.io`)
-
-5. Register the webhook with Revolut:
+4. Register the webhook with Revolut:
    ```bash
    ./revcli webhook register https://abc123.ngrok.io/webhook -e sandbox
    ```
 
-6. Test the webhook by creating a test order:
+5. Test the webhook by creating a test order:
    ```bash
    ./revcli order create 100 EUR -e sandbox
    ```
 
-The webhook listener will print all incoming requests with their details (method, URL, headers, body) to help you debug your webhook integration.
+6. Watch the webhook listener terminal - you'll see the incoming request details:
+   ```
+   === New Request at 2024-03-21 15:30:45 ===
+   Method: POST
+   URL: https://abc123.ngrok.io/webhook
+   Path: /webhook
+   Query Params: {}
+   Headers: {
+     "Content-Type": "application/json",
+     "User-Agent": "Revolut-Webhook/1.0",
+     "X-Revolut-Signature": "sha256=..."
+   }
+   Body: {
+     "event": "ORDER_PAYMENT_COMPLETED",
+     "order_id": "order_123",
+     "payment_id": "pay_456"
+   }
+   ==================================================
+   ```
+
+The webhook listener will help you:
+- Verify webhook delivery
+- Inspect request headers and signatures
+- Debug payload structure
+- Test different webhook events
 
 Note: The ngrok URL changes each time you restart ngrok unless you have a paid account. Make sure to update your webhook URL in Revolut when this happens.
 

@@ -146,11 +146,18 @@ When developing locally, you can use ngrok to receive webhooks:
    snap install ngrok
    ```
 
-2. Start your local webhook server (e.g., on port 3000)
+2. Start the webhook listener:
+   ```bash
+   # Install Flask if you haven't already
+   pip install flask
+   
+   # Run the listener
+   python webhook_listener.py
+   ```
 
 3. Start ngrok to create a tunnel:
    ```bash
-   ngrok http 3000
+   ngrok http 8000
    ```
 
 4. Copy the HTTPS URL provided by ngrok (e.g., `https://abc123.ngrok.io`)
@@ -164,6 +171,8 @@ When developing locally, you can use ngrok to receive webhooks:
    ```bash
    ./revcli order create 100 EUR -e sandbox
    ```
+
+The webhook listener will print all incoming requests with their details (method, URL, headers, body) to help you debug your webhook integration.
 
 Note: The ngrok URL changes each time you restart ngrok unless you have a paid account. Make sure to update your webhook URL in Revolut when this happens.
 

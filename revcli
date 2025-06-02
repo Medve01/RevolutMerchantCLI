@@ -1,0 +1,299 @@
+#!/bin/bash
+
+# Function to display usage
+show_usage() {
+    echo "Usage: $0 <command> [options]"
+    echo ""
+    echo "Commands:"
+    echo "  webhook"
+    echo "    list              List all registered webhooks"
+    echo "    register <url>    Register a new webhook"
+    echo "    delete <id>       Delete a webhook"
+    echo "    purge             Delete all registered webhooks"
+    echo ""
+    echo "  order"
+    echo "    create <amount> <currency>  Create a new order"
+    echo "    list [hours]               List orders from the past X hours (default: 8)"
+    echo "    get <id>                   Get order details"
+    echo ""
+    echo "Options:"
+    echo "  -e, --env <env>     Environment (sandbox|production, default: production)"
+    echo "  -h, --help          Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  $0 webhook list"
+    echo "  $0 webhook register https://your-domain.com/webhook -e sandbox"
+    echo "  $0 webhook purge -e sandbox"
+    echo "  $0 order create 100 EUR"
+    echo "  $0 order list 24"
+    echo "  $0 order get order_123"
+    exit 1
+}
+
+# Function to format JSON with highlighting if available
+format_json() {
+    local json="$1"
+    if command -v jq >/dev/null 2>&1; then
+        if command -v pygmentize >/dev/null 2>&1; then
+            echo "$json" | jq '.' | pygmentize -l json
+        else
+            echo "$json" | jq '.'
+        fi
+    else
+        echo "$json"
+    fi
+}
+
+# Function to get ISO 8601 timestamp for N hours ago
+get_timestamp() {
+    local hours=$1
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        date -v-${hours}H -u +"%Y-%m-%dT%H:%M:%SZ"
+    else
+        # Linux
+        date -d "${hours} hours ago" -u +"%Y-%m-%dT%H:%M:%SZ"
+    fi
+}
+
+# Initialize variables
+COMMAND=""
+SUBCOMMAND=""
+WEBHOOK_URL=""
+WEBHOOK_ID=""
+ENVIRONMENT="production"
+AMOUNT=""
+CURRENCY=""
+HOURS=8  # Default value
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        webhook|order)
+            COMMAND="$1"
+            shift
+            ;;
+        list|register|delete|create|get|purge)
+            SUBCOMMAND="$1"
+            shift
+            ;;
+        -e|--env)
+            ENVIRONMENT="$2"
+            shift 2
+            ;;
+        -h|--help)
+            show_usage
+            ;;
+        *)
+            case "$COMMAND" in
+                webhook)
+                    case "$SUBCOMMAND" in
+                        register)
+                            WEBHOOK_URL="$1"
+                            ;;
+                        delete)
+                            WEBHOOK_ID="$1"
+                            ;;
+                    esac
+                    ;;
+                order)
+                    case "$SUBCOMMAND" in
+                        create)
+                            if [ -z "$AMOUNT" ]; then
+                                AMOUNT="$1"
+                            elif [ -z "$CURRENCY" ]; then
+                                CURRENCY="$1"
+                            fi
+                            ;;
+                        get)
+                            WEBHOOK_ID="$1"
+                            ;;
+                        list)
+                            if [[ "$1" =~ ^[0-9]+$ ]]; then
+                                HOURS="$1"
+                            fi
+                            ;;
+                    esac
+                    ;;
+            esac
+            shift
+            ;;
+    esac
+done
+
+# Validate command and subcommand
+if [ -z "$COMMAND" ] || [ -z "$SUBCOMMAND" ]; then
+    echo "Error: Command and subcommand are required"
+    show_usage
+fi
+
+# Validate environment
+if [[ ! "$ENVIRONMENT" =~ ^(sandbox|production)$ ]]; then
+    echo "Error: Invalid environment. Must be one of: sandbox, production"
+    show_usage
+fi
+
+# Validate hours parameter
+if [[ "$COMMAND" == "order" && "$SUBCOMMAND" == "list" ]]; then
+    if ! [[ "$HOURS" =~ ^[0-9]+$ ]] || [ "$HOURS" -lt 1 ]; then
+        echo "Error: Hours parameter must be a positive integer"
+        show_usage
+    fi
+fi
+
+# Set base URL based on environment
+if [ "$ENVIRONMENT" = "sandbox" ]; then
+    BASE_URL="https://sandbox-merchant.revolut.com/api"
+    KEY_FILE="revolut.sandbox.secret.key"
+else
+    BASE_URL="https://merchant.revolut.com/api"
+    KEY_FILE="revolut.secret.key"
+fi
+
+# Read the Bearer token
+if [ ! -f "$KEY_FILE" ]; then
+    echo "Error: API key file not found: $KEY_FILE"
+    exit 1
+fi
+
+BEARER_TOKEN=$(cat "$KEY_FILE" | tr -d '\n')
+AUTH_HEADER="Authorization: Bearer $BEARER_TOKEN"
+
+# Execute the requested command
+case "$COMMAND" in
+    webhook)
+        case "$SUBCOMMAND" in
+            register)
+                if [ -z "$WEBHOOK_URL" ]; then
+                    echo "Error: Webhook URL is required for register command"
+                    show_usage
+                fi
+                
+                echo "Registering webhook for URL: $WEBHOOK_URL"
+                curl -i -L -X POST "$BASE_URL/1.0/webhooks" \
+                    -H 'Content-Type: application/json' \
+                    -H 'Accept: application/json' \
+                    -H "$AUTH_HEADER" \
+                    --data-raw '{
+                        "url": "'"$WEBHOOK_URL"'",
+                        "events": [
+                            "ORDER_COMPLETED"
+                        ]
+                    }'
+                ;;
+                
+            list)
+                echo "Listing webhooks..."
+                response=$(curl -s -X GET "$BASE_URL/1.0/webhooks" \
+                    -H "Authorization: Bearer $BEARER_TOKEN" \
+                    -H "Content-Type: application/json" \
+                    -H "Revolut-Api-Version: 2024-09-01")
+                
+                format_json "$response"
+                ;;
+                
+            delete)
+                if [ -z "$WEBHOOK_ID" ]; then
+                    echo "Error: Webhook ID is required for delete command"
+                    show_usage
+                fi
+                
+                echo "Deleting webhook with ID: $WEBHOOK_ID"
+                curl -L -g -X DELETE "$BASE_URL/1.0/webhooks/$WEBHOOK_ID" \
+                    -H "$AUTH_HEADER"
+                ;;
+
+            purge)
+                echo "Fetching all webhooks..."
+                response=$(curl -s -X GET "$BASE_URL/1.0/webhooks" \
+                    -H "Authorization: Bearer $BEARER_TOKEN" \
+                    -H "Content-Type: application/json" \
+                    -H "Revolut-Api-Version: 2024-09-01")
+                
+                # Extract webhook IDs using jq if available, otherwise use grep
+                if command -v jq >/dev/null 2>&1; then
+                    webhook_ids=$(echo "$response" | jq -r '.[].id')
+                else
+                    webhook_ids=$(echo "$response" | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
+                fi
+                
+                if [ -z "$webhook_ids" ]; then
+                    echo "No webhooks found to delete."
+                    exit 0
+                fi
+                
+                echo "Found webhooks to delete:"
+                echo "$webhook_ids"
+                echo ""
+                
+                # Ask for confirmation
+                read -p "Are you sure you want to delete all webhooks? (y/N) " -n 1 -r
+                echo
+                if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                    echo "Operation cancelled."
+                    exit 1
+                fi
+                
+                # Delete each webhook
+                for id in $webhook_ids; do
+                    echo "Deleting webhook: $id"
+                    curl -s -L -g -X DELETE "$BASE_URL/1.0/webhooks/$id" \
+                        -H "$AUTH_HEADER"
+                done
+                
+                echo "All webhooks have been deleted."
+                ;;
+        esac
+        ;;
+
+    order)
+        case "$SUBCOMMAND" in
+            create)
+                if [ -z "$AMOUNT" ] || [ -z "$CURRENCY" ]; then
+                    echo "Error: Amount and currency are required for create command"
+                    show_usage
+                fi
+                
+                echo "Creating order for amount: $AMOUNT $CURRENCY"
+                response=$(curl -s -L -X POST "$BASE_URL/orders" \
+                    -H 'Content-Type: application/json' \
+                    -H 'Accept: application/json' \
+                    -H 'Revolut-Api-Version: 2024-09-01' \
+                    -H "$AUTH_HEADER" \
+                    --data-raw '{
+                        "amount": '"$AMOUNT"',
+                        "currency": "'"$CURRENCY"'"
+                    }')
+                
+                echo "$response" | grep -o '"checkout_url":"[^"]*"' | cut -d'"' -f4
+                ;;
+
+            get)
+                if [ -z "$WEBHOOK_ID" ]; then
+                    echo "Error: Order ID is required for get command"
+                    show_usage
+                fi
+                
+                echo "Getting order details for ID: $WEBHOOK_ID"
+                response=$(curl -s -L -g -X GET "$BASE_URL/orders/$WEBHOOK_ID" \
+                    -H 'Accept: application/json' \
+                    -H 'Revolut-Api-Version: 2024-09-01' \
+                    -H "$AUTH_HEADER")
+                
+                format_json "$response"
+                ;;
+
+            list)
+                echo "Listing orders from the past $HOURS hours..."
+                from_date=$(get_timestamp $HOURS)
+                
+                response=$(curl -s -L -X GET "$BASE_URL/1.0/orders?from_created_date=$from_date" \
+                    -H 'Accept: application/json' \
+                    -H 'Revolut-Api-Version: 2024-09-01' \
+                    -H "$AUTH_HEADER")
+                
+                format_json "$response"
+                ;;
+        esac
+        ;;
+esac 

@@ -125,6 +125,50 @@ A command-line interface tool for managing Revolut Merchant API operations, incl
    ./revcli order get order_123
    ```
 
+## Development Tips
+
+### Setting Up a Sandbox Merchant Account
+
+1. Visit [Revolut Business](https://business.revolut.com/) and sign up for a business account
+2. Once logged in, go to the Developer section
+3. Create a new sandbox merchant account
+4. Generate API keys for your sandbox environment
+5. Save the API key in `revolut.sandbox.secret.key`
+
+### Testing Webhooks with ngrok
+
+When developing locally, you can use ngrok to receive webhooks:
+
+1. Install ngrok:
+   ```bash
+   # macOS
+   brew install ngrok
+   
+   # Linux
+   snap install ngrok
+   ```
+
+2. Start your local webhook server (e.g., on port 3000)
+
+3. Start ngrok to create a tunnel:
+   ```bash
+   ngrok http 3000
+   ```
+
+4. Copy the HTTPS URL provided by ngrok (e.g., `https://abc123.ngrok.io`)
+
+5. Register the webhook with Revolut:
+   ```bash
+   ./revcli webhook register https://abc123.ngrok.io/webhook -e sandbox
+   ```
+
+6. Test the webhook by creating a test order:
+   ```bash
+   ./revcli order create 100 EUR -e sandbox
+   ```
+
+Note: The ngrok URL changes each time you restart ngrok unless you have a paid account. Make sure to update your webhook URL in Revolut when this happens.
+
 ## Error Handling
 
 The script includes comprehensive error handling for:
